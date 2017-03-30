@@ -6,6 +6,7 @@ import tensorflow as tf
 import numpy as np
 
 from sys import stderr
+import sys
 
 from PIL import Image
 
@@ -16,6 +17,17 @@ try:
     reduce
 except NameError:
     from functools import reduce
+
+def getGram(mat,matT,matmul,size):
+    gram = matmul(matT, mat) / size
+    return gram
+
+def getGramFiltered(mat,matT,matmul,size):
+    cond = np.sum(mat,axis=1) > 0
+    mat = mat[cond]
+    return getGram(mat,mat.T,matmul,mat.size)
+
+
 
 
 def stylize(network, initial, initial_noiseblend, content, styles, preserve_colors, iterations,
@@ -70,7 +82,8 @@ def stylize(network, initial, initial_noiseblend, content, styles, preserve_colo
             for layer in STYLE_LAYERS:
                 features = net[layer].eval(feed_dict={image: style_pre})
                 features = np.reshape(features, (-1, features.shape[3]))
-                gram = np.matmul(features.T, features) / features.size
+                #gram = np.matmul(features.T, features) / features.size
+                gram = getGramFiltered(features,features.T,np.matmul,features.size)
                 style_features[i][layer] = gram
 
     initial_content_noise_coeff = 1.0 - initial_noiseblend
@@ -110,7 +123,9 @@ def stylize(network, initial, initial_noiseblend, content, styles, preserve_colo
                 _, height, width, number = map(lambda i: i.value, layer.get_shape())
                 size = height * width * number
                 feats = tf.reshape(layer, (-1, number))
-                gram = tf.matmul(tf.transpose(feats), feats) / size
+                #gram = tf.matmul(tf.transpose(feats), feats) / size
+                gram = getGram(feats,tf.transpose(feats),tf.matmul,size)
+
                 style_gram = style_features[i][style_layer]
                 style_losses.append(style_layers_weights[style_layer] * 2 * tf.nn.l2_loss(gram - style_gram) / style_gram.size)
             style_loss += style_weight * style_blend_weights[i] * reduce(tf.add, style_losses)
