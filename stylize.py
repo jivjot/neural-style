@@ -23,8 +23,13 @@ def getGram(mat,matT,matmul,size):
     return gram
 
 def getGramFiltered(mat,matT,matmul,size):
-    cond = np.sum(mat,axis=1) > 0
-    mat = mat[cond]
+    print "Input",mat.shape
+    percentile = np.percentile(mat,99,0) #percentile for each channel
+    cond = mat > percentile #retain where there is some activation
+    index = np.sum(cond,1) > 0
+    #cond = su > 0
+    mat = mat[index]
+    print "Output",mat.shape
     return getGram(mat,mat.T,matmul,mat.size)
 
 
