@@ -40,13 +40,43 @@ def initializeStyleSegmentations(styles):
         ret.append(np.ones(style.shape,np.float32))
     return ret
 
-def getForeGround(img):
-    m = np.max(img)
-    print m,np.min(img)
-    cond = img == m
+def getSegmentation(img,seg_t):
+    cond = img == seg_t
     ret = cond.astype(np.float32)
     ret = ret.reshape((ret.shape[0],ret.shape[1],1))
     return ret
+
+
+def getUniqueSegmentations(img):
+    return np.unique(img)
+
+
+def getStyleFeatures(styles,vgg_weights,vgg_mean_pixel,pooling,style_segmentations):
+    style_features = [{} for _ in styles]
+    style_shapes = [(1,) + style.shape for style in styles]
+
+    for i in range(len(styles)):
+        for seg_t in getUniqueSegmentations(style_segmentations[i]):
+            style_features[i][seg_t] =  {}
+            g = tf.Graph()
+            with g.as_default(), g.device('/cpu:0'), tf.Session() as sess:
+                image = tf.placeholder('float', shape=style_shapes[i])
+                image_bitmap = tf.placeholder('float',
+                        shape=(style_shapes[i][0],
+                            style_shapes[i][1],
+                            style_shapes[i][2],1))
+                net = vgg.net_preloaded(vgg_weights, image, pooling,
+                        image_bitmap)
+                style_pre = np.array([vgg.preprocess(styles[i],
+                    vgg_mean_pixel)])
+                style_segmentations_pre = np.array([getSegmentation(style_segmentations[i],seg_t)])
+                for layer in STYLE_LAYERS:
+                    features = net[layer].eval(feed_dict={image: style_pre,image_bitmap:style_segmentations_pre})
+                    features = np.reshape(features, (-1, features.shape[3]))
+                    gram = getGramFiltered(features,features.T,np.matmul,features.size)
+                    style_features[i][seg_t][layer] = gram
+
+    return style_features
 
 
 def stylize(network, initial, initial_noiseblend, content, styles, preserve_colors, iterations,
@@ -66,9 +96,7 @@ def stylize(network, initial, initial_noiseblend, content, styles, preserve_colo
     if style_segmentations is None:
         style_segmentations = initializeStyleSegmentations(styles)
     shape = (1,) + content.shape
-    style_shapes = [(1,) + style.shape for style in styles]
     content_features = {}
-    style_features = [{} for _ in styles]
 
     vgg_weights, vgg_mean_pixel = vgg.load_net(network)
 
@@ -95,25 +123,7 @@ def stylize(network, initial, initial_noiseblend, content, styles, preserve_colo
         for layer in CONTENT_LAYERS:
             content_features[layer] = net[layer].eval(feed_dict={image: content_pre})
 
-    # compute style features in feedforward mode
-    for i in range(len(styles)):
-        g = tf.Graph()
-        with g.as_default(), g.device('/cpu:0'), tf.Session() as sess:
-            image = tf.placeholder('float', shape=style_shapes[i])
-            image_bitmap = tf.placeholder('float', shape=(style_shapes[i][0],style_shapes[i][1],style_shapes[i][2],1))
-            #styleForeGroundBitMap = style_segmentations[i]#Tmp function for testing
-            net = vgg.net_preloaded(vgg_weights, image, pooling,image_bitmap)
-            #style_pre = np.array([np.multiply(vgg.preprocess(styles[i], vgg_mean_pixel),image_bitmap)])
-            style_pre = np.array([vgg.preprocess(styles[i], vgg_mean_pixel)])
-            style_segmentations_pre = np.array([getForeGround(style_segmentations[i])]) #Currently foreground will need to do for every segmented region
-            print style_pre.shape
-            for layer in STYLE_LAYERS:
-		print "style_segmentations_pre",style_segmentations_pre.shape
-                features = net[layer].eval(feed_dict={image: style_pre,image_bitmap:style_segmentations_pre})
-                features = np.reshape(features, (-1, features.shape[3]))
-                #gram = np.matmul(features.T, features) / features.size
-                gram = getGramFiltered(features,features.T,np.matmul,features.size)
-                style_features[i][layer] = gram
+    style_features = getStyleFeatures(styles,vgg_weights,vgg_mean_pixel,pooling,style_segmentations)
 
     initial_content_noise_coeff = 1.0 - initial_noiseblend
 
@@ -155,9 +165,9 @@ def stylize(network, initial, initial_noiseblend, content, styles, preserve_colo
                 feats = tf.reshape(layer, (-1, number))
                 #gram = tf.matmul(tf.transpose(feats), feats) / size
                 gram = getGram(feats,tf.transpose(feats),tf.matmul,size)
-
-                style_gram = style_features[i][style_layer]
-                style_losses.append(style_layers_weights[style_layer] * 2 * tf.nn.l2_loss(gram - style_gram) / style_gram.size)
+                for key in style_features[i]:
+                    style_gram = style_features[i][key][style_layer]
+                    style_losses.append(style_layers_weights[style_layer] * 2 * tf.nn.l2_loss(gram - style_gram) / style_gram.size)
             style_loss += style_weight * style_blend_weights[i] * reduce(tf.add, style_losses)
 
         # total variation denoising
