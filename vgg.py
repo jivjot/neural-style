@@ -28,7 +28,7 @@ def load_net(data_path):
 
 def net_preloaded(weights, input_image, pooling,bit_map):
     net = {}
-    current = input_image
+    current = tf.multiply(input_image,bit_map)
     current_bitMap = bit_map
     for i, name in enumerate(VGG19_LAYERS):
         kind = name[:4]
@@ -49,15 +49,14 @@ def net_preloaded(weights, input_image, pooling,bit_map):
     return net
 
 def resetBitMap(bit_map):
-    zero = tf.constant(0, dtype=tf.float32)
-    where = tf.not_equal(bit_map, zero)
+    where = tf.greater_equal(bit_map, tf.reduce_max(bit_map)/2)
     return tf.cast(where,tf.float32)
 
 def _conv_layer(input, weights, bias,bit_map):
-
+    shape = (3,3,1,1)
     conv = tf.nn.conv2d(input, tf.constant(weights), strides=(1, 1, 1, 1),
             padding='SAME')
-    conv_bitmap = tf.nn.conv2d(bit_map, tf.ones(weights.shape), strides=(1, 1, 1, 1),
+    conv_bitmap = tf.nn.conv2d(bit_map, tf.ones(shape), strides=(1, 1, 1, 1),
             padding='SAME')
     conv_bitmap = resetBitMap(conv_bitmap)
     return tf.multiply(tf.nn.bias_add(conv, bias),conv_bitmap),conv_bitmap
@@ -75,7 +74,7 @@ def _pool_layer(input, pooling,bit_map):
         bit_map_pool = tf.nn.max_pool(bit_map, ksize=(1, 2, 2, 1), strides=(1, 2, 2, 1),
                 padding='SAME')
     bit_map_pool = resetBitMap(bit_map_pool)
-    return tf.multiply(pool,bit_map_pool),bit_map_pool
+    return pool,bit_map_pool
 
 def preprocess(image, mean_pixel):
     return image - mean_pixel
