@@ -57,7 +57,7 @@ def _conv_layer(input, weights, bias,bit_map):
 
     conv = tf.nn.conv2d(input, tf.constant(weights), strides=(1, 1, 1, 1),
             padding='SAME')
-    conv_bitmap = tf.nn.conv2d(bit_map, tf.constant(weights), strides=(1, 1, 1, 1),
+    conv_bitmap = tf.nn.conv2d(bit_map, tf.ones(weights.shape), strides=(1, 1, 1, 1),
             padding='SAME')
     conv_bitmap = resetBitMap(conv_bitmap)
     return tf.multiply(tf.nn.bias_add(conv, bias),conv_bitmap),conv_bitmap
