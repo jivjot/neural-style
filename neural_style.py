@@ -11,6 +11,7 @@ import math
 from argparse import ArgumentParser
 
 from PIL import Image
+import cPickle
 
 # default arguments
 CONTENT_WEIGHT = 5e0
@@ -120,7 +121,7 @@ def main():
     style_images = [imread(style) for style in options.styles]
     style_segmentations_images = None
     if options.style_segmentations is not None:
-        style_segmentations_images = [imread(style_segmentation) for style_segmentation in options.style_segmentations]
+        style_segmentations_images = [cPickle.load(open(style_segmentation,'rb')) for style_segmentation in options.style_segmentations]
 
     width = options.width
     if width is not None:

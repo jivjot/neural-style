@@ -39,6 +39,13 @@ def initializeStyleSegmentations(styles):
         ret.append(np.ones(style.shape,np.float32))
     return ret
 
+def getForeGround(img):
+    m = np.max(img)
+    print m,np.min(img)
+    cond = img == m
+    ret = cond.astype(np.float32)
+    return np.dstack((ret,ret,ret))
+
 
 def stylize(network, initial, initial_noiseblend, content, styles, preserve_colors, iterations,
         content_weight, content_weight_blend, style_weight, style_layer_weight_exp, style_blend_weights, tv_weight,
@@ -95,7 +102,7 @@ def stylize(network, initial, initial_noiseblend, content, styles, preserve_colo
             #styleForeGroundBitMap = style_segmentations[i]#Tmp function for testing
             net = vgg.net_preloaded(vgg_weights, image, pooling,image_bitmap)
             style_pre = np.array([vgg.preprocess(styles[i], vgg_mean_pixel)])
-            style_segmentations_pre = np.array([style_segmentations[i]])
+            style_segmentations_pre = np.array([getForeGround(style_segmentations[i])]) #Currently foreground will need to do for every segmented region
             print style_pre.shape
             for layer in STYLE_LAYERS:
                 features = net[layer].eval(feed_dict={image: style_pre,image_bitmap:style_segmentations_pre})
