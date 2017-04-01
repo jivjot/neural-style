@@ -36,6 +36,10 @@ def build_parser():
             dest='styles',
             nargs='+', help='one or more style images',
             metavar='STYLE', required=True)
+    parser.add_argument('--style-segmentations',
+            dest='style_segmentations',
+            nargs='+', help='one or more style images segmentations',
+            metavar='STYLE_SEGEMENTATIONS')
     parser.add_argument('--output',
             dest='output', help='output path',
             metavar='OUTPUT', required=True)
@@ -114,6 +118,9 @@ def main():
 
     content_image = imread(options.content)
     style_images = [imread(style) for style in options.styles]
+    style_segmentations_images = None
+    if options.style_segmentations is not None:
+        style_segmentations_images = [imread(style_segmentation) for style_segmentation in options.style_segmentations]
 
     width = options.width
     if width is not None:
@@ -127,6 +134,14 @@ def main():
             style_scale = options.style_scales[i]
         style_images[i] = scipy.misc.imresize(style_images[i], style_scale *
                 target_shape[1] / style_images[i].shape[1])
+
+    if style_segmentations_images is not None:
+        for i in range(len(style_segmentations_images)):
+            style_scale = STYLE_SCALE
+            if options.style_scales is not None:
+                style_scale = options.style_scales[i]
+            style_segmentations_images[i] = scipy.misc.imresize(style_segmentations_images[i], style_scale *
+                    target_shape[1] / style_segmentations_images[i].shape[1])
 
     style_blend_weights = options.style_blend_weights
     if style_blend_weights is None:
@@ -174,7 +189,8 @@ def main():
         epsilon=options.epsilon,
         pooling=options.pooling,
         print_iterations=options.print_iterations,
-        checkpoint_iterations=options.checkpoint_iterations
+        checkpoint_iterations=options.checkpoint_iterations,
+        style_segmentations=style_segmentations_images
     ):
         output_file = None
         combined_rgb = image

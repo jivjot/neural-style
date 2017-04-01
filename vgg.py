@@ -26,9 +26,10 @@ def load_net(data_path):
     weights = data['layers'][0]
     return weights, mean_pixel
 
-def net_preloaded(weights, input_image, pooling):
+def net_preloaded(weights, input_image, pooling,bit_map):
     net = {}
     current = input_image
+    current_bitMap = bit_map
     for i, name in enumerate(VGG19_LAYERS):
         kind = name[:4]
         if kind == 'conv':
@@ -37,29 +38,44 @@ def net_preloaded(weights, input_image, pooling):
             # tensorflow: weights are [height, width, in_channels, out_channels]
             kernels = np.transpose(kernels, (1, 0, 2, 3))
             bias = bias.reshape(-1)
-            current = _conv_layer(current, kernels, bias)
+            current,current_bitMap = _conv_layer(current, kernels, bias,current_bitMap)
         elif kind == 'relu':
             current = tf.nn.relu(current)
         elif kind == 'pool':
-            current = _pool_layer(current, pooling)
+            current,current_bitMap = _pool_layer(current, pooling,current_bitMap)
         net[name] = current
 
     assert len(net) == len(VGG19_LAYERS)
     return net
 
-def _conv_layer(input, weights, bias):
+def resetBitMap(bit_map):
+    zero = tf.constant(0, dtype=tf.float32)
+    where = tf.not_equal(bit_map, zero)
+    return tf.cast(where,tf.float32)
+
+def _conv_layer(input, weights, bias,bit_map):
+
     conv = tf.nn.conv2d(input, tf.constant(weights), strides=(1, 1, 1, 1),
             padding='SAME')
-    return tf.nn.bias_add(conv, bias)
+    conv_bitmap = tf.nn.conv2d(bit_map, tf.constant(weights), strides=(1, 1, 1, 1),
+            padding='SAME')
+    conv_bitmap = resetBitMap(conv_bitmap)
+    return tf.multiply(tf.nn.bias_add(conv, bias),conv_bitmap),conv_bitmap
 
 
-def _pool_layer(input, pooling):
+def _pool_layer(input, pooling,bit_map):
     if pooling == 'avg':
-        return tf.nn.avg_pool(input, ksize=(1, 2, 2, 1), strides=(1, 2, 2, 1),
+        pool = tf.nn.avg_pool(input, ksize=(1, 2, 2, 1), strides=(1, 2, 2, 1),
+                padding='SAME')
+        bit_map_pool = tf.nn.avg_pool(bit_map, ksize=(1, 2, 2, 1), strides=(1, 2, 2, 1),
                 padding='SAME')
     else:
-        return tf.nn.max_pool(input, ksize=(1, 2, 2, 1), strides=(1, 2, 2, 1),
+        pool = tf.nn.max_pool(input, ksize=(1, 2, 2, 1), strides=(1, 2, 2, 1),
                 padding='SAME')
+        bit_map_pool = tf.nn.max_pool(bit_map, ksize=(1, 2, 2, 1), strides=(1, 2, 2, 1),
+                padding='SAME')
+    bit_map_pool = resetBitMap(bit_map_pool)
+    return tf.multiply(pool,bit_map_pool),bit_map_pool
 
 def preprocess(image, mean_pixel):
     return image - mean_pixel
