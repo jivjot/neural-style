@@ -131,8 +131,8 @@ def stylize(network, initial, initial_noiseblend, content, styles, preserve_colo
             noise = np.random.normal(size=shape, scale=np.std(content) * 0.1)
             initial = (initial) * initial_content_noise_coeff + (tf.random_normal(shape) * 0.256) * (1.0 - initial_content_noise_coeff)
         image = tf.Variable(initial)
-        image_bit_map = np.ones((shape[0],shape[1],shape[2],1),np.float32)
-        net = vgg.net_preloaded(vgg_weights, image, pooling,image_bit_map)
+        #image_bit_map = np.ones((shape[0],shape[1],shape[2],1),np.float32)
+        net = vgg.net_preloaded(vgg_weights, image, pooling,reshape2dto4d(content_segmentation))
 
         # content loss
         content_layers_weights = {}
@@ -152,6 +152,7 @@ def stylize(network, initial, initial_noiseblend, content, styles, preserve_colo
         for i in range(len(styles)):
             style_losses = []
             for seg_key in net['SEG']:
+                print "style_loss",seg_key
                 for style_layer in STYLE_LAYERS:
                     layer = net['SEG'][seg_key][style_layer]
                     _, height, width, number = map(lambda i: i.value, layer.get_shape())
