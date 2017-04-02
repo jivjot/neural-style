@@ -26,8 +26,19 @@ def load_net(data_path):
     weights = data['layers'][0]
     return weights, mean_pixel
 
-def net_preloaded(weights, input_image, pooling,bit_map):
+def getUniqueSegmentations(img):
+    return np.unique(img)
+
+
+def getBitMap(img,seg_t):
+    cond = img == seg_t
+    ret = cond.astype(np.float32)
+    #ret = ret.reshape((ret.shape[0],ret.shape[1],ret.shape[2],1))
+    return ret
+
+def _net_preloaded(weights,input_image,pooling,bit_map):
     net = {}
+    print "_net_preloaded",input_image.get_shape(),bit_map.shape
     current = tf.multiply(input_image,bit_map)
     current_bitMap = bit_map
     for i, name in enumerate(VGG19_LAYERS):
@@ -44,8 +55,17 @@ def net_preloaded(weights, input_image, pooling,bit_map):
         elif kind == 'pool':
             current,current_bitMap = _pool_layer(current, pooling,current_bitMap)
         net[name] = current
-
     assert len(net) == len(VGG19_LAYERS)
+    return net
+
+
+def net_preloaded(weights, input_image, pooling,segmentation_map):
+    net = {'SEG':{}}
+    no_seg_map = np.ones(segmentation_map.shape,np.float32)
+    net['NO_SEG'] = _net_preloaded(weights,input_image,pooling,no_seg_map)
+    for seg_t in getUniqueSegmentations(segmentation_map):
+        bit_map = getBitMap(segmentation_map,seg_t)
+        net['SEG'][seg_t] = _net_preloaded(weights,input_image,pooling,bit_map)
     return net
 
 def resetBitMap(bit_map):

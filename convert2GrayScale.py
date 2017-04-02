@@ -16,19 +16,26 @@ def imread(path):
         This code is for styleImageSegmentation.jpg
         which has a bug please remove it for other images
     """
-    cond = img == 1
+    cond = img  <= 128
     img[cond] =  0
+    img[cond==False] = 1
     return img
 
 def getDistinctLabels(img):
-    img = img.reshape(-1,img.shape[-1])
-    img = map(tuple,img)
-    img = sorted(list(set(img)))
-    ret = []
-    for i in range(len(img)):
-        ret.append((img[i],i))
-    print ret
-    return ret
+    """
+    Tmp fix
+    """
+    return [((0, 0, 0), 0), ((1, 0, 0), 0), ((1, 1, 0), 0), ((1, 1, 1), 1)]
+
+#def getDistinctLabels(img):
+#    img = img.reshape(-1,img.shape[-1])
+#    img = map(tuple,img)
+#    img = sorted(list(set(img)))
+#    ret = []
+#    for i in range(len(img)):
+#        ret.append((img[i],i))
+#    print ret
+#    return ret
 
 def getGreyScaleImage(img,labels):
     res = np.zeros((img.shape[0],img.shape[1]),img.dtype)
@@ -50,11 +57,11 @@ def main():
     this code is only for segmented images
     which should have like one to 16 colors
     """
-    img = imread('../deep/testImages/styleImageSegmentation.jpg')
+    img = imread('../deep/testImages/contentImageSegmentation.jpg')
     labels =  getDistinctLabels(img)
     print labels
     gImg = getGreyScaleImage(img,labels)
-    cPickle.dump(gImg,open('styleSegmentation.pickle','wb'))
+    cPickle.dump(gImg,open('contentSegmentation.pickle','wb'))
 
 
 

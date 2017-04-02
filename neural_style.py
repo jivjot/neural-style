@@ -33,6 +33,10 @@ def build_parser():
     parser.add_argument('--content',
             dest='content', help='content image',
             metavar='CONTENT', required=True)
+    parser.add_argument('--content-segmentation',
+            dest='content_segmentation', help='content segmentation',
+            metavar='CONTENT_SEGEMENTATION', required=True)
+
     parser.add_argument('--styles',
             dest='styles',
             nargs='+', help='one or more style images',
@@ -118,6 +122,10 @@ def main():
         parser.error("Network %s does not exist. (Did you forget to download it?)" % options.network)
 
     content_image = imread(options.content)
+    content_segmentation = None
+    if options.content_segmentation is not None:
+        content_segmentation = cPickle.load(open(options.content_segmentation,'rb'))
+
     style_images = [imread(style) for style in options.styles]
     style_segmentations_images = None
     if options.style_segmentations is not None:
@@ -128,7 +136,10 @@ def main():
         new_shape = (int(math.floor(float(content_image.shape[0]) /
                 content_image.shape[1] * width)), width)
         content_image = scipy.misc.imresize(content_image, new_shape)
+        content_segmentation = scipy.misc.imresize(content_segmentation,new_shape)
     target_shape = content_image.shape
+
+
     for i in range(len(style_images)):
         style_scale = STYLE_SCALE
         if options.style_scales is not None:
@@ -191,7 +202,8 @@ def main():
         pooling=options.pooling,
         print_iterations=options.print_iterations,
         checkpoint_iterations=options.checkpoint_iterations,
-        style_segmentations=style_segmentations_images
+        style_segmentations=style_segmentations_images,
+        content_segmentation=content_segmentation
     ):
         output_file = None
         combined_rgb = image
