@@ -69,7 +69,8 @@ def net_preloaded(weights, input_image, pooling,segmentation_map):
     return net
 
 def resetBitMap(bit_map):
-    where = tf.greater_equal(bit_map, tf.reduce_max(bit_map)/2)
+    where = tf.not_equal(bit_map,0)
+    #where = tf.greater_equal(bit_map, tf.reduce_max(bit_map)*0.75)
     return tf.cast(where,tf.float32)
 
 def _conv_layer(input, weights, bias,bit_map):
