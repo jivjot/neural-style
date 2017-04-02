@@ -36,9 +36,10 @@ def getBitMap(img,seg_t):
     #ret = ret.reshape((ret.shape[0],ret.shape[1],ret.shape[2],1))
     return ret
 
-def _net_preloaded(weights,input_image,pooling):
+def _net_preloaded(weights,input_image,pooling,bit_map):
     net = {}
-    current = input_image
+    current = tf.multiply(input_image,bit_map)
+    current_bitMap = bit_map
     for i, name in enumerate(VGG19_LAYERS):
         kind = name[:4]
         if kind == 'conv':
@@ -47,80 +48,53 @@ def _net_preloaded(weights,input_image,pooling):
             # tensorflow: weights are [height, width, in_channels, out_channels]
             kernels = np.transpose(kernels, (1, 0, 2, 3))
             bias = bias.reshape(-1)
-            current = _conv_layer(current, kernels, bias)
+            current,current_bitMap = _conv_layer(current, kernels, bias,current_bitMap)
         elif kind == 'relu':
             current = tf.nn.relu(current)
         elif kind == 'pool':
-            current = _pool_layer(current, pooling)
+            current,current_bitMap = _pool_layer(current, pooling,current_bitMap)
         net[name] = current
     assert len(net) == len(VGG19_LAYERS)
     return net
 
 
-def getBitMappedVGG(net,bit_map,pooling):
-    res =  {}
-    current = bit_map
-    for i, name in enumerate(VGG19_LAYERS):
-        kind = name[:4]
-        if kind == 'conv':
-            current = _conv_layer_bit_map(current)
-        elif kind == 'pool':
-            current = _pool_layer_bit_map(current, pooling)
-        res[name] = tf.multiply(net[name],current)
-    assert len(res) == len(VGG19_LAYERS)
-    return res
-
 def net_preloaded(weights, input_image, pooling,segmentation_map):
     net = {'SEG':{}}
-    net['NO_SEG'] = _net_preloaded(weights,input_image,pooling)
+    no_seg_map = np.ones(segmentation_map.shape,np.float32)
+    net['NO_SEG'] = _net_preloaded(weights,input_image,pooling,no_seg_map)
     for seg_t in getUniqueSegmentations(segmentation_map):
         bit_map = getBitMap(segmentation_map,seg_t)
-        net['SEG'][seg_t] = getBitMappedVGG(net['NO_SEG'],bit_map,pooling)
+        net['SEG'][seg_t] = _net_preloaded(weights,input_image,pooling,bit_map)
     return net
 
 def resetBitMap(bit_map):
-    #where = tf.not_equal(bit_map,0)
+    where = tf.not_equal(bit_map,0)
     #where = tf.greater_equal(bit_map, tf.reduce_max(bit_map)*0.75)
-    where = tf.greater(bit_map,0)
     return tf.cast(where,tf.float32)
 
-def _conv_layer(input, weights, bias):
+def _conv_layer(input, weights, bias,bit_map):
+    shape = (3,3,1,1)
     conv = tf.nn.conv2d(input, tf.constant(weights), strides=(1, 1, 1, 1),
             padding='SAME')
-    return tf.nn.bias_add(conv, bias)
-
-
-def _conv_layer_bit_map(bit_map):
-    shape = (3,3,1,1)
     conv_bitmap = tf.nn.conv2d(bit_map, tf.ones(shape), strides=(1, 1, 1, 1),
             padding='SAME')
     conv_bitmap = resetBitMap(conv_bitmap)
-    return conv_bitmap
+    return tf.multiply(tf.nn.bias_add(conv, bias),conv_bitmap),conv_bitmap
 
 
-def _pool_layer_bit_map(bit_map,pooling):
-    if pooling == 'avg':
-        bit_map_pool = tf.nn.avg_pool(bit_map,
-                ksize=(1, 2, 2, 1), strides=(1, 2, 2, 1),
-                padding='SAME')
-    else:
-        bit_map_pool = tf.nn.max_pool(bit_map,
-                ksize=(1, 2, 2, 1), strides=(1, 2, 2, 1),
-                padding='SAME')
-    bit_map_pool = resetBitMap(bit_map_pool)
-    return bit_map_pool
-
-
-
-def _pool_layer(input, pooling):
+def _pool_layer(input, pooling,bit_map):
     if pooling == 'avg':
         pool = tf.nn.avg_pool(input, ksize=(1, 2, 2, 1), strides=(1, 2, 2, 1),
+                padding='SAME')
+        bit_map_pool = tf.nn.avg_pool(bit_map, ksize=(1, 2, 2, 1), strides=(1, 2, 2, 1),
                 padding='SAME')
     else:
         pool = tf.nn.max_pool(input, ksize=(1, 2, 2, 1), strides=(1, 2, 2, 1),
                 padding='SAME')
-    return pool
-
+        bit_map_pool = tf.nn.max_pool(bit_map, ksize=(1, 2, 2, 1), strides=(1, 2, 2, 1),
+                padding='SAME')
+    bit_map_pool = resetBitMap(bit_map_pool)
+    return pool,bit_map_pool
 
 def preprocess(image, mean_pixel):
     return image - mean_pixel
