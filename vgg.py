@@ -56,14 +56,38 @@ def _net_preloaded(weights,input_image,pooling):
     assert len(net) == len(VGG19_LAYERS)
     return net
 
+def _net_preloaded_style(weights,input_image,pooling,bit_map):
+    net = {}
+    current = tf.multiply(input_image,bit_map)
+    current_bitMap = bit_map
+    weights_bitmap =  np.array([[1, 1, 1], [1, 1, 1],[1,1,1]], np.float32)
+    for i, name in enumerate(VGG19_LAYERS):
+        kind = name[:4]
+        if kind == 'conv':
+            kernels, bias = weights[i][0][0][0][0]
+            kernels = np.transpose(kernels, (1, 0, 2, 3))
+            bias = bias.reshape(-1)
+            current = _conv_layer(current, kernels, bias)
+            current_bitMap= _conv_layer_bit_map(current_bitMap,weights_bitmap)
+        elif kind == 'relu':
+            current = tf.nn.relu(current)
+        elif kind == 'pool':
+            current = _pool_layer(current, pooling)
+            current_bitMap = _pool_layer_bit_map(current_bitMap, pooling)
+
+        current = tf.multiply(current,current_bitMap)
+        net[name] = current
+    assert len(net) == len(VGG19_LAYERS)
+    return net
 
 def getBitMappedVGG(net,bit_map,pooling):
     res =  {}
     current = bit_map
+    weights =  np.array([[0, 0, 0], [0, 1, 0],[0,0,0]], np.float32)
     for i, name in enumerate(VGG19_LAYERS):
         kind = name[:4]
         if kind == 'conv':
-            current = _conv_layer_bit_map(current)
+            current = _conv_layer_bit_map(current,weights)
         elif kind == 'pool':
             current = _pool_layer_bit_map(current, pooling)
         res[name] = tf.multiply(net[name],current)
@@ -78,6 +102,14 @@ def net_preloaded(weights, input_image, pooling,segmentation_map):
         net['SEG'][seg_t] = getBitMappedVGG(net['NO_SEG'],bit_map,pooling)
     return net
 
+def net_preloaded_style(weights,input_image,pooling,segmentation_map):
+    net = {'SEG':{}}
+    for seg_t in getUniqueSegmentations(segmentation_map):
+        bit_map = getBitMap(segmentation_map,seg_t)
+        net['SEG'][seg_t] = _net_preloaded_style(weights,input_image,pooling,bit_map)
+    return net
+
+
 def resetBitMap(bit_map):
     #where = tf.not_equal(bit_map,0)
     #where = tf.greater_equal(bit_map, tf.reduce_max(bit_map)*0.75)
@@ -90,9 +122,12 @@ def _conv_layer(input, weights, bias):
     return tf.nn.bias_add(conv, bias)
 
 
-def _conv_layer_bit_map(bit_map):
+def _conv_layer_bit_map(bit_map,weights):
     shape = (3,3,1,1)
-    conv_bitmap = tf.nn.conv2d(bit_map, tf.ones(shape), strides=(1, 1, 1, 1),
+    #weights = tf.ones(shape)
+    #weights =  np.array([[0, 0, 0], [0, 1, 0],[0,0,0]], np.float32)
+    weights = weights.reshape(shape)
+    conv_bitmap = tf.nn.conv2d(bit_map, weights, strides=(1, 1, 1, 1),
             padding='SAME')
     conv_bitmap = resetBitMap(conv_bitmap)
     return conv_bitmap

@@ -55,7 +55,7 @@ def getStyleFeatures(styles,vgg_weights,vgg_mean_pixel,pooling,style_segmentatio
         g = tf.Graph()
         with g.as_default(), g.device('/cpu:0'), tf.Session() as sess:
             image = tf.placeholder('float', shape=style_shapes[i])
-            net = vgg.net_preloaded(vgg_weights, image, pooling,
+            net = vgg.net_preloaded_style(vgg_weights, image, pooling,
                     reshape2dto4d(style_segmentations[i]))
             style_pre = np.array([vgg.preprocess(styles[i],
                 vgg_mean_pixel)])
@@ -161,7 +161,7 @@ def stylize(network, initial, initial_noiseblend, content, styles, preserve_colo
                     gram = getGram(feats,tf.transpose(feats),tf.matmul,size)
                     if seg_key in style_features[i]:
                         style_gram = style_features[i][seg_key][style_layer]
-                        style_losses.append(style_layers_weights[style_layer] * 2 * tf.nn.l2_loss(gram - style_gram) / style_gram.size)
+                        style_losses.append(style_layers_weights[style_layer] * (seg_key+1) * tf.nn.l2_loss(gram - style_gram) / style_gram.size)
             style_loss += style_weight * style_blend_weights[i] * reduce(tf.add, style_losses)
 
         # total variation denoising
