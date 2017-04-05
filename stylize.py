@@ -55,7 +55,7 @@ def getStyleFeatures(styles,vgg_weights,vgg_mean_pixel,pooling,style_segmentatio
         g = tf.Graph()
         with g.as_default(), g.device('/cpu:0'), tf.Session() as sess:
             image = tf.placeholder('float', shape=style_shapes[i])
-            net = vgg.net_preloaded_style(vgg_weights, image, pooling,
+            net = vgg.net_preloaded(vgg_weights, image, pooling,
                     reshape2dto4d(style_segmentations[i]))
             style_pre = np.array([vgg.preprocess(styles[i],
                 vgg_mean_pixel)])
