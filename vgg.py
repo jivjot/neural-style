@@ -60,7 +60,7 @@ def _net_preloaded_style(weights,input_image,pooling,bit_map):
     net = {}
     current = tf.multiply(input_image,bit_map)
     current_bitMap = bit_map
-    weights_bitmap =  np.array([[1, 1, 1], [1, 1, 1],[1,1,1]], np.float32)
+    weights_bitmap =  np.array([[0, 0, 0], [0, 1, 0],[0,0,0]], np.float32)
     for i, name in enumerate(VGG19_LAYERS):
         kind = name[:4]
         if kind == 'conv':
@@ -80,7 +80,7 @@ def _net_preloaded_style(weights,input_image,pooling,bit_map):
     assert len(net) == len(VGG19_LAYERS)
     return net
 
-def getBitMappedVGG(net,bit_map,pooling):
+def getBitMappedVGG(bit_map,pooling):
     res =  {}
     current = bit_map
     weights =  np.array([[0, 0, 0], [0, 1, 0],[0,0,0]], np.float32)
@@ -90,16 +90,79 @@ def getBitMappedVGG(net,bit_map,pooling):
             current = _conv_layer_bit_map(current,weights)
         elif kind == 'pool':
             current = _pool_layer_bit_map(current, pooling)
-        res[name] = tf.multiply(net[name],current)
+        res[name] = current
     assert len(res) == len(VGG19_LAYERS)
+    return res
+
+
+def multiply(mult,bit_map_dict):
+    ret = {}
+    for key in bit_map_dict:
+        ret[key] = tf.multiply(bit_map_dict[key],mult)
+    return ret
+
+def sumBitMap(sum_bit_map,bit_map_dict):
+    ret = {}
+    for key in sum_bit_map:
+        ret[key] = tf.add(sum_bit_map[key],bit_map_dict[key])
+    return ret
+
+def add_bit_map_list(mult_list):
+    sum_bit_map = mult_list[0][1]
+
+    for (seg_t,bit_map_dict) in mult_list[1:]:
+        sum_bit_map = sumBitMap(sum_bit_map,bit_map_dict)
+
+    return sum_bit_map
+
+
+def rectifySegment(sum_bit_map,seg_t):
+    res = {}
+    mult = 10**seg_t
+    mult_next = 10**(seg_t+1)
+    for key in sum_bit_map:
+        greater = tf.cast(tf.greater_equal(sum_bit_map[key],mult),tf.float32)
+        less = tf.cast(tf.less(sum_bit_map[key],mult_next),tf.float32)
+        res[key] = tf.multiply(greater,less)
+    return res
+
+
+
+def rectifyBitMapList(sum_bit_map,seg_t_list):
+    ret = {}
+    for seg_t in seg_t_list:
+        ret[seg_t] = rectifySegment(sum_bit_map,seg_t)
+    return ret
+
+def resolveConflictsEachLayer(bit_map_list,seg_t_list):
+    mult_list = []
+    for (seg_t,bit_map_dict) in bit_map_list:
+        mult = 10**seg_t
+        mult_list.append((mult,multiply(mult,bit_map_dict)))
+
+    sum_bit_map = add_bit_map_list(mult_list)
+    return rectifyBitMapList(sum_bit_map,seg_t_list)
+
+
+def getResolvedVGG(net,bit_map):
+    res = {}
+    for key in net:
+        res[key] =  tf.multiply(net[key],bit_map[key])
     return res
 
 def net_preloaded(weights, input_image, pooling,segmentation_map):
     net = {'SEG':{}}
+    bit_map_list = []
     net['NO_SEG'] = _net_preloaded(weights,input_image,pooling)
-    for seg_t in getUniqueSegmentations(segmentation_map):
+    seg_t_list = getUniqueSegmentations(segmentation_map)
+    for seg_t in seg_t_list:
         bit_map = getBitMap(segmentation_map,seg_t)
-        net['SEG'][seg_t] = getBitMappedVGG(net['NO_SEG'],bit_map,pooling)
+        bit_map_list.append((seg_t,getBitMappedVGG(bit_map,pooling)))
+
+    bit_map_list = resolveConflictsEachLayer(bit_map_list,seg_t_list)
+    print bit_map_list
+    for seg_t in bit_map_list:
+        net['SEG'][seg_t] = getResolvedVGG(net['NO_SEG'],bit_map_list[seg_t])
     return net
 
 def net_preloaded_style(weights,input_image,pooling,segmentation_map):
