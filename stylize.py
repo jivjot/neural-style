@@ -13,6 +13,11 @@ from PIL import Image
 CONTENT_LAYERS = ('relu4_2', 'relu5_2')
 STYLE_LAYERS = ('relu1_1', 'relu2_1', 'relu3_1', 'relu4_1', 'relu5_1')
 
+#CONTENT_LAYERS = ('relu4_2',)
+#STYLE_LAYERS = ('relu3_1','relu4_1')#'relu4_1')
+print CONTENT_LAYERS
+print STYLE_LAYERS
+
 try:
     reduce
 except NameError:
@@ -24,13 +29,11 @@ def getGram(mat,matT,matmul,size):
 
 def getGramFiltered(mat,matT,matmul,size):
     return getGram(mat,matT,matmul,size)
-    print "Input",mat.shape
-    percentile = np.percentile(mat,99,0) #percentile for each channel
+    percentile = np.percentile(mat,1,0) #percentile for each channel
     cond = mat > percentile #retain where there is some activation
     index = np.sum(cond,1) > 0
     #cond = su > 0
     mat = mat[index]
-    print "Output",mat.shape
     return getGram(mat,mat.T,matmul,mat.size)
 
 
@@ -55,7 +58,7 @@ def getStyleFeatures(styles,vgg_weights,vgg_mean_pixel,pooling,style_segmentatio
         g = tf.Graph()
         with g.as_default(), g.device('/cpu:0'), tf.Session() as sess:
             image = tf.placeholder('float', shape=style_shapes[i])
-            net = vgg.net_preloaded(vgg_weights, image, pooling,
+            net = vgg.net_preloaded_style(vgg_weights, image, pooling,
                     reshape2dto4d(style_segmentations[i]))
             style_pre = np.array([vgg.preprocess(styles[i],
                 vgg_mean_pixel)])
@@ -132,7 +135,7 @@ def stylize(network, initial, initial_noiseblend, content, styles, preserve_colo
             initial = (initial) * initial_content_noise_coeff + (tf.random_normal(shape) * 0.256) * (1.0 - initial_content_noise_coeff)
         image = tf.Variable(initial)
         #image_bit_map = np.ones((shape[0],shape[1],shape[2],1),np.float32)
-        net = vgg.net_preloaded(vgg_weights, image, pooling,reshape2dto4d(content_segmentation))
+        net = vgg.net_preloaded_style(vgg_weights, image, pooling,reshape2dto4d(content_segmentation))
 
         # content loss
         content_layers_weights = {}
@@ -161,7 +164,7 @@ def stylize(network, initial, initial_noiseblend, content, styles, preserve_colo
                     gram = getGram(feats,tf.transpose(feats),tf.matmul,size)
                     if seg_key in style_features[i]:
                         style_gram = style_features[i][seg_key][style_layer]
-                        style_losses.append(style_layers_weights[style_layer] * (seg_key+1) * tf.nn.l2_loss(gram - style_gram) / style_gram.size)
+                        style_losses.append(style_layers_weights[style_layer] * 2 * tf.nn.l2_loss(gram - style_gram) / style_gram.size)
             style_loss += style_weight * style_blend_weights[i] * reduce(tf.add, style_losses)
 
         # total variation denoising

@@ -4,9 +4,15 @@ from PIL import Image
 import cPickle
 import webcolors
 
+ 
+acceptedColors = ['white','green','blue','red']
+acceptedColorsDI = dict(zip(acceptedColors,range(len(acceptedColors))))
+
 def closest_colour(requested_colour):
     min_colours = {}
     for key, name in webcolors.css3_hex_to_names.items():
+	if name not in acceptedColors:
+		continue	
         r_c, g_c, b_c = webcolors.hex_to_rgb(key)
         rd = (r_c - requested_colour[0]) ** 2
         gd = (g_c - requested_colour[1]) ** 2
@@ -14,18 +20,10 @@ def closest_colour(requested_colour):
         min_colours[(rd + gd + bd)] = name
     return min_colours[min(min_colours.keys())]
 
+
 def get_colour_name(requested_colour):
-    try:
-        closest_name = actual_name = webcolors.rgb_to_name(requested_colour)
-    except ValueError:
-        closest_name = closest_colour(requested_colour)
-        actual_name = None
-    return actual_name, closest_name
-
-
-
-
-
+    closest_name = closest_colour(requested_colour)
+    return acceptedColorsDI[closest_name]
 
 
 def imread(path):
@@ -54,12 +52,10 @@ def imread(path):
 
 def getDistinctLabels(img):
     img = img.reshape(-1,img.shape[-1])
-    img = map(lambda l:get_colour_name(l),map(tuple,img))
+    img = map(tuple,img)
     img = sorted(list(set(img)))
-    ret = []
-    for i in range(len(img)):
-        ret.append((img[i],i))
-    return ret
+    img = map(lambda l:(l,get_colour_name(l)),img)
+    return img
 
 def getGreyScaleImage(img,labels):
     res = np.zeros((img.shape[0],img.shape[1]),img.dtype)
@@ -70,7 +66,16 @@ def getGreyScaleImage(img,labels):
 
 def imsave(path, img):
     #img = np.clip(img, 0, 255).astype(np.uint8)
-    Image.fromarray(img).save(path, quality=95)
+    print path
+    Image.fromarray(img).convert('RGB').save(path, quality=95)
+
+def saveDifferentSegments(img):
+    colors = np.unique(img)
+    for col in colors:
+	cond = img == col
+	zero = np.zeros(img.shape)
+	zero[cond] = 255
+	imsave('seg_{}.png'.format(col),zero)
 
 def main():
     """
@@ -81,11 +86,11 @@ def main():
     this code is only for segmented images
     which should have like one to 16 colors
     """
-    img = imread('Gogh_sem.png')
+    img = imread('Landscape_sem.png')
     labels =  getDistinctLabels(img)
-    print labels
-    #gImg = getGreyScaleImage(img,labels)
-    #cPickle.dump(gImg,open('contentSegmentation.pickle','wb'))
+    gImg = getGreyScaleImage(img,labels)
+    cPickle.dump(gImg,open('Landscape_sem.pickle','wb'))
+    saveDifferentSegments(gImg)
 
 
 
