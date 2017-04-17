@@ -4,15 +4,16 @@ from PIL import Image
 import cPickle
 import webcolors
 
- 
-acceptedColors = ['white','green','blue','red']
+
+#acceptedColors = ['white','green','blue','red']
+acceptedColors = ['black','grey']
 acceptedColorsDI = dict(zip(acceptedColors,range(len(acceptedColors))))
 
 def closest_colour(requested_colour):
     min_colours = {}
     for key, name in webcolors.css3_hex_to_names.items():
 	if name not in acceptedColors:
-		continue	
+		continue
         r_c, g_c, b_c = webcolors.hex_to_rgb(key)
         rd = (r_c - requested_colour[0]) ** 2
         gd = (g_c - requested_colour[1]) ** 2
@@ -86,10 +87,10 @@ def main():
     this code is only for segmented images
     which should have like one to 16 colors
     """
-    img = imread('Landscape_sem.png')
+    img = imread('o.jpg')
     labels =  getDistinctLabels(img)
     gImg = getGreyScaleImage(img,labels)
-    cPickle.dump(gImg,open('Landscape_sem.pickle','wb'))
+    cPickle.dump(gImg,open('seth_anuj.pickle','wb'))
     saveDifferentSegments(gImg)
 
 

@@ -35,7 +35,7 @@ def build_parser():
             metavar='CONTENT', required=True)
     parser.add_argument('--content-segmentation',
             dest='content_segmentation', help='content segmentation',
-            metavar='CONTENT_SEGEMENTATION', required=True)
+            metavar='CONTENT_SEGEMENTATION', required=False)
 
     parser.add_argument('--styles',
             dest='styles',
@@ -125,7 +125,6 @@ def main():
     content_segmentation = None
     if options.content_segmentation is not None:
         content_segmentation = cPickle.load(open(options.content_segmentation,'rb'))
-
     style_images = [imread(style) for style in options.styles]
     style_segmentations_images = None
     if options.style_segmentations is not None:
@@ -137,6 +136,7 @@ def main():
                 content_image.shape[1] * width)), width)
         content_image = scipy.misc.imresize(content_image, new_shape)
         content_segmentation = scipy.misc.imresize(content_segmentation,new_shape)
+        #content_segmentation = np.ones(new_shape)
     target_shape = content_image.shape
 
 
@@ -181,6 +181,7 @@ def main():
         parser.error("To save intermediate images, the checkpoint output "
                      "parameter must contain `%s` (e.g. `foo%s.jpg`)")
 
+    #print np.unique(content_segmentation)
     for iteration, image in stylize(
         network=options.network,
         initial=initial,

@@ -27,7 +27,9 @@ def load_net(data_path):
     return weights, mean_pixel
 
 def getUniqueSegmentations(img):
-    return np.unique(img)
+    ret = np.unique(img)
+    print "unique",ret
+    return ret
 
 
 def getBitMap(img,seg_t):
@@ -56,12 +58,25 @@ def _net_preloaded(weights,input_image,pooling):
     assert len(net) == len(VGG19_LAYERS)
     return net
 
+def rectifyEdges(current,current_bitMap,count_bit_map):
+    sum_current = _conv_layer_sum(current)
+    print "sum_current",sum_current.get_shape()
+    avg_current = tf.divide(sum_current,count_bit_map)
+    print "avg_current",avg_current.get_shape()
+    avg_current_masked = tf.multiply(tf.cast(tf.equal(current_bitMap,0),tf.float32),avg_current)
+    print "avg_current_masked",avg_current_masked.get_shape()
+    print "current",current.get_shape()
+    return tf.add(avg_current_masked,current)
+
 def rectifyEdges(current,bit_map):
     tf_sum = tf.reduce_sum(current,[0,1,2])
     tf_count = tf.reduce_sum(bit_map,[0,1,2])
     tf_avg = tf.divide(tf_sum,tf_count)
     avg_bit_map = tf.multiply(tf.cast(tf.equal(bit_map,0),tf.float32),tf_avg)
     return tf.add(current,avg_bit_map)
+
+
+
 
 def _net_preloaded_style(weights,input_image,pooling,bit_map):
     net = {}
@@ -75,6 +90,9 @@ def _net_preloaded_style(weights,input_image,pooling,bit_map):
             kernels = np.transpose(kernels, (1, 0, 2, 3))
             bias = bias.reshape(-1)
 
+            #count_bitMap= _conv_layer_bit_map(current_bitMap,weights_bitmap,0)
+            #current = _conv_layer(rectifyEdges(current,current_bitMap,count_bitMap), kernels, bias)
+            #current_bitMap = resetBitMap(count_bitMap,0)
             current = _conv_layer(rectifyEdges(current,current_bitMap), kernels, bias)
             current_bitMap= _conv_layer_bit_map(current_bitMap,weights_bitmap,0)
         elif kind == 'relu':
@@ -192,6 +210,15 @@ def _conv_layer(input, weights, bias):
     conv = tf.nn.conv2d(input, tf.constant(weights), strides=(1, 1, 1, 1),
             padding='SAME')
     return tf.nn.bias_add(conv, bias)
+
+
+def _conv_layer_sum(input):
+    print input.get_shape()
+    shape = (3,3,input.get_shape()[-1],1)
+    weights = tf.ones(shape)
+    conv = tf.nn.conv2d(input, weights, strides=(1, 1, 1, 1),
+            padding='SAME')
+    return conv
 
 
 def _conv_layer_bit_map(bit_map,weights,thresh):

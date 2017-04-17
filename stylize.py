@@ -14,7 +14,11 @@ CONTENT_LAYERS = ('relu4_2', 'relu5_2')
 STYLE_LAYERS = ('relu1_1', 'relu2_1', 'relu3_1', 'relu4_1', 'relu5_1')
 
 #CONTENT_LAYERS = ('relu4_2',)
-#STYLE_LAYERS = ('relu3_1','relu4_1')#'relu4_1')
+#STYLE_LAYERS = ('relu1_1','relu1_2',
+#'relu2_1','relu2_2',
+#'relu3_1','relu3_2','relu3_3','relu3_4',
+#'relu4_1','relu4_2','relu4_3','relu4_4',
+#'relu5_1','relu5_2','relu5_3','relu5_4')
 print CONTENT_LAYERS
 print STYLE_LAYERS
 
@@ -68,6 +72,9 @@ def getStyleFeatures(styles,vgg_weights,vgg_mean_pixel,pooling,style_segmentatio
                     features = net['SEG'][key][layer].eval(feed_dict={image: style_pre})
                     features = np.reshape(features, (-1, features.shape[3]))
                     gram = getGramFiltered(features,features.T,np.matmul,features.size)
+                    #unique,counts = np.unique(features,return_counts=True)
+                    #dict_unique = dict(zip(unique,counts))
+                    #gram = getGramFiltered(features,features.T,np.matmul,features.size - dict_unique[0])
                     style_features[i][key][layer] = gram
     return style_features
 
@@ -93,6 +100,7 @@ def stylize(network, initial, initial_noiseblend, content, styles, preserve_colo
         content_segmentation = initializeSegmentations([content_segmentation])[0]
     shape = (1,) + content.shape
     content_features = {}
+    content_segmentation_bitmap = {}
 
     vgg_weights, vgg_mean_pixel = vgg.load_net(network)
 
